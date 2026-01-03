@@ -4,11 +4,10 @@ import jwt from "jsonwebtoken";
 
 const userSchema = new Schema(
   {
-    username: {
+    employeeId: {
       type: String,
       required: true,
       unique: true,
-      lowercase: true,
       trim: true,
       index: true,
     },
@@ -19,29 +18,26 @@ const userSchema = new Schema(
       lowercase: true,
       trim: true,
     },
-    fullName: {
-      type: String,
-      required: true,
-      trim: true,
-      index: true,
-    },
-    avatar: {
-      type: String, // cloud url
-      require: true,
-    },
-    coverImage: {
-      type: String,
-    },
-    watchHistory: {
-      type: [mongoose.Schema.Types.ObjectId],
-      ref: "Video",
-    },
     password: {
       type: String,
-      require: [true, "password is required"],
+      required: [true, "password is required"],
     },
-    refreshtoken: {
+    role: {
       type: String,
+      enum: ['employee', 'hr', 'admin'],
+      default: 'employee',
+      required: true,
+    },
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    refreshToken: {
+      type: String,
+    },
+    employeeProfile: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Employee",
     },
   },
   {
@@ -58,27 +54,24 @@ userSchema.pre("save", async function (next) {
 userSchema.methods.generateAccessToken = function () {
     return jwt.sign({
         _id : this._id,
-        email:this.email,
-        username:this.username,
-        fullName:this.fullName,
+        email: this.email,
+        employeeId: this.employeeId,
+        role: this.role,
     },
-    process.env.ACCESS_TOKEN_SECREAT,
+    process.env.ACCESS_TOKEN_SECRET,
     {
-        expiresIn:process.env.ACCESS_TOKEN_EXPIRY
+        expiresIn: process.env.ACCESS_TOKEN_EXPIRY
     }
 )
 };
 
-userSchema.methods.generateAccessToken = function () {
+userSchema.methods.generateRefreshToken = function () {
     return jwt.sign({
         _id : this._id,
-        email:this.email,
-        username:this.username,
-        fullName:this.fullName,
     },
-    process.env.REFRESH_TOKEN_SECREAT,
+    process.env.REFRESH_TOKEN_SECRET,
     {
-        expiresIn:process.env.REFRESH_TOKEN_EXPIRY
+        expiresIn: process.env.REFRESH_TOKEN_EXPIRY
     }
 )
 };
