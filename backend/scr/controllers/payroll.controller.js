@@ -76,8 +76,16 @@ export const getPayrollByEmployeeId = asyncHandler(async (req, res) => {
 // @route   POST /api/v1/payroll
 // @access  Private (Admin/HR)
 export const createOrUpdatePayroll = asyncHandler(async (req, res) => {
-  const { employeeId, basicSalary, allowances, deductions, effectiveFrom } =
+  const { employeeId, basicSalary, allowances, deductions, effectiveFrom, currency } =
     req.body;
+
+  if (!employeeId) {
+    throw new ApiError(400, "Employee ID is required");
+  }
+
+  if (!basicSalary && basicSalary !== 0) {
+    throw new ApiError(400, "Basic salary is required");
+  }
 
   const employee = await Employee.findById(employeeId);
 
@@ -89,12 +97,24 @@ export const createOrUpdatePayroll = asyncHandler(async (req, res) => {
   let payroll = await Payroll.findOne({ employee: employeeId });
 
   if (payroll) {
-    // Update existing payroll
-    payroll.basicSalary = basicSalary;
-    payroll.allowances = allowances || payroll.allowances;
-    payroll.deductions = deductions || payroll.deductions;
-    payroll.effectiveFrom = effectiveFrom || payroll.effectiveFrom;
+    // Update existing payroll - only update provided fields
+    if (basicSalary !== undefined) {
+      payroll.basicSalary = basicSalary;
+    }
+    if (allowances !== undefined) {
+      payroll.allowances = { ...payroll.allowances, ...allowances };
+    }
+    if (deductions !== undefined) {
+      payroll.deductions = { ...payroll.deductions, ...deductions };
+    }
+    if (effectiveFrom !== undefined) {
+      payroll.effectiveFrom = effectiveFrom;
+    }
+    if (currency !== undefined) {
+      payroll.currency = currency;
+    }
 
+    // The pre-save hook will calculate netSalary automatically
     await payroll.save();
 
     return res
@@ -108,6 +128,7 @@ export const createOrUpdatePayroll = asyncHandler(async (req, res) => {
       allowances: allowances || {},
       deductions: deductions || {},
       effectiveFrom: effectiveFrom || new Date(),
+      currency: currency || 'INR',
     });
 
     return res

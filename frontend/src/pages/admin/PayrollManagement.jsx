@@ -22,8 +22,10 @@ const PayrollManagement = () => {
     hra: '',
     transport: '',
     medical: '',
+    otherAllowance: '',
     tax: '',
     providentFund: '',
+    otherDeduction: '',
   })
 
   useEffect(() => {
@@ -46,6 +48,22 @@ const PayrollManagement = () => {
     }
   }
 
+  // Calculate net salary in real-time
+  const calculateNetSalary = () => {
+    const basicSalary = parseFloat(formData.basicSalary) || 0
+    const totalAllowances = 
+      (parseFloat(formData.hra) || 0) +
+      (parseFloat(formData.transport) || 0) +
+      (parseFloat(formData.medical) || 0) +
+      (parseFloat(formData.otherAllowance) || 0)
+    const totalDeductions = 
+      (parseFloat(formData.tax) || 0) +
+      (parseFloat(formData.providentFund) || 0) +
+      (parseFloat(formData.otherDeduction) || 0)
+    
+    return Math.max(0, basicSalary + totalAllowances - totalDeductions)
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
@@ -57,10 +75,12 @@ const PayrollManagement = () => {
           hra: parseFloat(formData.hra) || 0,
           transport: parseFloat(formData.transport) || 0,
           medical: parseFloat(formData.medical) || 0,
+          other: parseFloat(formData.otherAllowance) || 0,
         },
         deductions: {
           tax: parseFloat(formData.tax) || 0,
           providentFund: parseFloat(formData.providentFund) || 0,
+          other: parseFloat(formData.otherDeduction) || 0,
         }
       }
 
@@ -73,8 +93,10 @@ const PayrollManagement = () => {
         hra: '',
         transport: '',
         medical: '',
+        otherAllowance: '',
         tax: '',
         providentFund: '',
+        otherDeduction: '',
       })
       await fetchData()
     } catch (error) {
@@ -185,9 +207,44 @@ const PayrollManagement = () => {
                       onChange={(e) => setFormData({ ...formData, providentFund: e.target.value })}
                     />
                   </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="otherAllowance">Other Allowances (₹)</Label>
+                    <Input
+                      id="otherAllowance"
+                      type="number"
+                      value={formData.otherAllowance}
+                      onChange={(e) => setFormData({ ...formData, otherAllowance: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="otherDeduction">Other Deductions (₹)</Label>
+                    <Input
+                      id="otherDeduction"
+                      type="number"
+                      value={formData.otherDeduction}
+                      onChange={(e) => setFormData({ ...formData, otherDeduction: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="netSalary">Net Salary (₹) *</Label>
+                    <Input
+                      id="netSalary"
+                      type="number"
+                      value={calculateNetSalary().toFixed(2)}
+                      readOnly
+                      className="bg-muted font-semibold text-green-600 cursor-not-allowed"
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Calculated automatically: Basic Salary + Allowances - Deductions
+                    </p>
+                  </div>
                 </div>
 
-                <Button type="submit" disabled={submitting}>
+                <Button type="submit" disabled={submitting || !formData.basicSalary || !formData.employeeId}>
                   {submitting ? 'Saving...' : 'Save Payroll'}
                 </Button>
               </form>
