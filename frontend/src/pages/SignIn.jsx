@@ -7,7 +7,7 @@ import { Label } from '../components/ui/Label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card'
 
 const SignIn = () => {
-  const [email, setEmail] = useState('')
+  const [loginIdOrEmail, setLoginIdOrEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -27,7 +27,7 @@ const SignIn = () => {
     setLoading(true)
 
     try {
-      const userData = await signin(email, password)
+      const userData = await signin(loginIdOrEmail, password)
       
       // Redirect based on role
       if (userData.role === 'admin' || userData.role === 'hr') {
@@ -66,14 +66,14 @@ const SignIn = () => {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="loginIdOrEmail">Login ID/Email</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  id="loginIdOrEmail"
+                  type="text"
+                  value={loginIdOrEmail}
+                  onChange={(e) => setLoginIdOrEmail(e.target.value)}
                   required
-                  placeholder="you@company.com"
+                  placeholder="Enter Login ID or Email"
                 />
               </div>
 

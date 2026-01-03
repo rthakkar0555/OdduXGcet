@@ -4,6 +4,13 @@ import jwt from "jsonwebtoken";
 
 const userSchema = new Schema(
   {
+    loginId: {
+      type: String,
+      unique: true,
+      trim: true,
+      sparse: true,
+      index: true,
+    },
     employeeId: {
       type: String,
       required: true,
@@ -21,6 +28,13 @@ const userSchema = new Schema(
     password: {
       type: String,
       required: [true, "password is required"],
+    },
+    companyName: {
+      type: String,
+      trim: true,
+    },
+    companyLogo: {
+      type: String, // Cloudinary URL
     },
     role: {
       type: String,
@@ -55,6 +69,7 @@ userSchema.methods.generateAccessToken = function () {
     return jwt.sign({
         _id : this._id,
         email: this.email,
+        loginId: this.loginId,
         employeeId: this.employeeId,
         role: this.role,
     },

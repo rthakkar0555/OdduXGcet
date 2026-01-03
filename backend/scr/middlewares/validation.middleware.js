@@ -14,10 +14,26 @@ export const validate = (req, res, next) => {
 
 // Validation rules for authentication
 export const signupValidation = [
+  body("companyName")
+    .optional()
+    .trim()
+    .isLength({ min: 2 })
+    .withMessage("Company name must be at least 2 characters"),
+  body("name")
+    .notEmpty()
+    .withMessage("Name is required")
+    .trim()
+    .isLength({ min: 2 })
+    .withMessage("Name must be at least 2 characters"),
   body("email")
     .isEmail()
     .withMessage("Please provide a valid email")
     .normalizeEmail(),
+  body("phone")
+    .optional()
+    .trim()
+    .matches(/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/)
+    .withMessage("Please provide a valid phone number"),
   body("password")
     .isLength({ min: 6 })
     .withMessage("Password must be at least 6 characters long")
@@ -25,6 +41,15 @@ export const signupValidation = [
     .withMessage(
       "Password must contain at least one uppercase letter, one lowercase letter, and one number"
     ),
+  body("confirmPassword")
+    .notEmpty()
+    .withMessage("Confirm password is required")
+    .custom((value, { req }) => {
+      if (value !== req.body.password) {
+        throw new Error("Passwords do not match");
+      }
+      return true;
+    }),
   body("role")
     .optional()
     .isIn(["employee", "hr", "admin"])
@@ -33,10 +58,10 @@ export const signupValidation = [
 ];
 
 export const signinValidation = [
-  body("email")
-    .isEmail()
-    .withMessage("Please provide a valid email")
-    .normalizeEmail(),
+  body("loginIdOrEmail")
+    .notEmpty()
+    .withMessage("Login ID or Email is required")
+    .trim(),
   body("password").notEmpty().withMessage("Password is required"),
   validate,
 ];

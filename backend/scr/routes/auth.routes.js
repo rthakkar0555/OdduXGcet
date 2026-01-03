@@ -11,12 +11,13 @@ import {
   signupValidation,
   signinValidation,
 } from "../middlewares/validation.middleware.js";
+import { upload } from "../middlewares/multer.middleware.js";
 
 const router = Router();
 
 // Public routes
-router.post("/signup",signupValidation, signup);
-router.post("/signin", signinValidation, signin);
+router.post("/signup", upload.single("logo"), ...signupValidation, signup);
+router.post("/signin", ...signinValidation, signin);
 router.post("/refresh-token", refreshAccessToken);
 
 // Protected routes
