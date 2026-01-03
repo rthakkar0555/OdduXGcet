@@ -52,13 +52,13 @@ const EmployeeManagement = () => {
       const employeeData = {
         personalDetails: {
           fullName: formData.fullName,
-          phone: formData.phone,
+          phone: formData.phone || undefined,
         },
         jobDetails: {
           designation: formData.designation,
           department: formData.department,
           employmentType: formData.employmentType,
-          joinDate: formData.joinDate,
+          ...(formData.joinDate && { joinDate: formData.joinDate }),
         }
       }
 
@@ -79,8 +79,14 @@ const EmployeeManagement = () => {
         joinDate: '',
       })
       await fetchEmployees()
+      toastSuccess(editingId ? 'Employee updated successfully!' : 'Employee created successfully!')
     } catch (error) {
-      alert(error.response?.data?.message || 'Failed to save employee')
+      console.error('Error saving employee:', error)
+      const errorMessage = error.response?.data?.message || 
+                          error.response?.data?.error || 
+                          error.message || 
+                          'Failed to save employee. Please try again.'
+      toastError(errorMessage, 'Save Failed')
     } finally {
       setSubmitting(false)
     }
@@ -88,13 +94,19 @@ const EmployeeManagement = () => {
 
   const handleEdit = (employee) => {
     setEditingId(employee._id)
+    // Handle both joinDate and joiningDate fields
+    const joinDateValue = employee.jobDetails?.joinDate || employee.jobDetails?.joiningDate
+    const formattedDate = joinDateValue 
+      ? new Date(joinDateValue).toISOString().split('T')[0] 
+      : ''
+    
     setFormData({
       fullName: employee.personalDetails?.fullName || '',
       phone: employee.personalDetails?.phone || '',
       designation: employee.jobDetails?.designation || '',
       department: employee.jobDetails?.department || '',
       employmentType: employee.jobDetails?.employmentType || 'full-time',
-      joinDate: employee.jobDetails?.joinDate ? new Date(employee.jobDetails.joinDate).toISOString().split('T')[0] : '',
+      joinDate: formattedDate,
     })
     setShowForm(true)
   }

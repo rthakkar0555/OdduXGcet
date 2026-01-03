@@ -30,9 +30,11 @@ const Sidebar = () => {
   ]
 
   const adminNavItems = [
-    { name: 'Employees', path: '/admin/dashboard', icon: Users },
+    { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
+    { name: 'Employees', path: '/admin/employees', icon: Users },
     { name: 'Attendance', path: '/admin/attendance', icon: Calendar },
     { name: 'Time Off', path: '/admin/leaves', icon: FileText },
+    { name: 'Payroll', path: '/admin/payroll', icon: DollarSign },
   ]
 
   const navItems = (isAdmin || isHR) ? adminNavItems : employeeNavItems

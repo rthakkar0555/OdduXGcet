@@ -82,6 +82,63 @@ const generateEmployeeId = () => {
   return `EMP${timestamp}${random}`;
 };
 
+// Calculate salary components based on wage
+const calculateSalaryComponents = (monthWage) => {
+  if (!monthWage || monthWage <= 0) {
+    return {
+      basicSalary: { amount: 0, percentage: 50 },
+      hra: { amount: 0, percentage: 50 },
+      standardAllowance: { amount: 4167, percentage: 0 },
+      performanceBonus: { amount: 0, percentage: 8.33 },
+      lta: { amount: 0, percentage: 8.33 },
+      fixedAllowance: { amount: 0, percentage: 0 },
+      pfEmployee: { amount: 0, percentage: 10 },
+      pfEmployer: { amount: 0, percentage: 12 },
+      professionalTax: { amount: 200, percentage: 0 },
+    };
+  }
+
+  // Basic Salary = 50% of wage
+  const basicSalary = monthWage * 0.5;
+  
+  // HRA = 50% of Basic
+  const hra = basicSalary * 0.5;
+  
+  // Standard Allowance = 4167 (fixed)
+  const standardAllowance = 4167;
+  
+  // Performance Bonus = 8.33% of Basic
+  const performanceBonus = basicSalary * 0.0833;
+  
+  // LTA = 8.33% of Basic
+  const lta = basicSalary * 0.0833;
+  
+  // Fixed Allowance = Wage - Total of all other components
+  const otherComponentsTotal = basicSalary + hra + standardAllowance + performanceBonus + lta;
+  const fixedAllowance = Math.max(0, monthWage - otherComponentsTotal);
+  
+  // PF Employee = 10% of Basic
+  const pfEmployee = basicSalary * 0.10;
+  
+  // PF Employer = 12% of Basic
+  const pfEmployer = basicSalary * 0.12;
+  
+  // Professional Tax = 200 (fixed)
+  const professionalTax = 200;
+
+  return {
+    basicSalary: { amount: Math.round(basicSalary * 100) / 100, percentage: 50 },
+    hra: { amount: Math.round(hra * 100) / 100, percentage: 50 },
+    standardAllowance: { amount: standardAllowance, percentage: 0 },
+    performanceBonus: { amount: Math.round(performanceBonus * 100) / 100, percentage: 8.33 },
+    lta: { amount: Math.round(lta * 100) / 100, percentage: 8.33 },
+    fixedAllowance: { amount: Math.round(fixedAllowance * 100) / 100, percentage: 0 },
+    pfEmployee: { amount: Math.round(pfEmployee * 100) / 100, percentage: 10 },
+    pfEmployer: { amount: Math.round(pfEmployer * 100) / 100, percentage: 12 },
+    professionalTax: { amount: professionalTax, percentage: 0 },
+  };
+};
+
 // @desc    Get employee profile
 // @route   GET /api/v1/employees/profile
 // @access  Private
@@ -104,7 +161,7 @@ export const getProfile = asyncHandler(async (req, res) => {
 // @route   PUT /api/v1/employees/profile
 // @access  Private
 export const updateProfile = asyncHandler(async (req, res) => {
-  const { personalDetails, jobDetails } = req.body;
+  const { personalDetails, jobDetails, salaryInfo } = req.body;
 
   const employee = await Employee.findOne({ user: req.user._id });
 
@@ -118,26 +175,116 @@ export const updateProfile = asyncHandler(async (req, res) => {
       employee.personalDetails.phone = personalDetails.phone !== undefined ? personalDetails.phone : employee.personalDetails.phone;
       employee.personalDetails.address = personalDetails.address !== undefined ? personalDetails.address : employee.personalDetails.address;
       employee.personalDetails.emoji = personalDetails.emoji !== undefined ? personalDetails.emoji : employee.personalDetails.emoji;
+      // Allow updating personal info fields
+      if (personalDetails.about !== undefined) {
+        employee.personalDetails.about = personalDetails.about;
+      }
+      if (personalDetails.jobLove !== undefined) {
+        employee.personalDetails.jobLove = personalDetails.jobLove;
+      }
+      if (personalDetails.interests !== undefined) {
+        employee.personalDetails.interests = personalDetails.interests;
+      }
+      if (personalDetails.skills !== undefined) {
+        employee.personalDetails.skills = personalDetails.skills;
+      }
+      if (personalDetails.certifications !== undefined) {
+        employee.personalDetails.certifications = personalDetails.certifications;
+      }
       // Allow removing profile picture by setting to null
       if (personalDetails.profilePicture === null) {
         employee.personalDetails.profilePicture = null;
       }
     }
   } else {
-    // Admin/HR can update all fields
+    // Admin/HR can update all fields including salary info
     if (personalDetails) {
+      // Handle nested updates properly
+      if (personalDetails.bankDetails) {
+        employee.personalDetails.bankDetails = { 
+          ...employee.personalDetails.bankDetails, 
+          ...personalDetails.bankDetails 
+        };
+        delete personalDetails.bankDetails;
+      }
+      if (personalDetails.skills) {
+        employee.personalDetails.skills = personalDetails.skills;
+        delete personalDetails.skills;
+      }
+      if (personalDetails.certifications) {
+        employee.personalDetails.certifications = personalDetails.certifications;
+        delete personalDetails.certifications;
+      }
       employee.personalDetails = { ...employee.personalDetails, ...personalDetails };
     }
     if (jobDetails) {
       employee.jobDetails = { ...employee.jobDetails, ...jobDetails };
     }
+    if (salaryInfo && (req.user.role === "admin" || req.user.role === "hr")) {
+      // Only Admin/HR can update salary info
+      // If monthWage is updated, recalculate all salary components
+      if (salaryInfo.monthWage !== undefined) {
+        const monthWage = salaryInfo.monthWage;
+        const yearlyWage = monthWage * 12;
+        const calculatedComponents = calculateSalaryComponents(monthWage);
+        
+        employee.salaryInfo.monthWage = monthWage;
+        employee.salaryInfo.yearlyWage = yearlyWage;
+        employee.salaryInfo.salaryComponents = calculatedComponents;
+        
+        // Also update PF and Professional Tax
+        employee.salaryInfo.pfEmployee = calculatedComponents.pfEmployee;
+        employee.salaryInfo.pfEmployer = calculatedComponents.pfEmployer;
+        employee.salaryInfo.professionalTax = calculatedComponents.professionalTax;
+      } else {
+        // Update other salary info fields without recalculation
+        if (salaryInfo.yearlyWage !== undefined) {
+          employee.salaryInfo.yearlyWage = salaryInfo.yearlyWage;
+        }
+        if (salaryInfo.workingDays !== undefined) {
+          employee.salaryInfo.workingDays = salaryInfo.workingDays;
+        }
+        if (salaryInfo.breakTime !== undefined) {
+          employee.salaryInfo.breakTime = salaryInfo.breakTime;
+        }
+        if (salaryInfo.salaryComponents) {
+          employee.salaryInfo.salaryComponents = {
+            ...employee.salaryInfo.salaryComponents,
+            ...salaryInfo.salaryComponents,
+          };
+        }
+        if (salaryInfo.pfEmployee) {
+          employee.salaryInfo.pfEmployee = {
+            ...employee.salaryInfo.pfEmployee,
+            ...salaryInfo.pfEmployee,
+          };
+        }
+        if (salaryInfo.pfEmployer) {
+          employee.salaryInfo.pfEmployer = {
+            ...employee.salaryInfo.pfEmployer,
+            ...salaryInfo.pfEmployer,
+          };
+        }
+        if (salaryInfo.professionalTax) {
+          employee.salaryInfo.professionalTax = {
+            ...employee.salaryInfo.professionalTax,
+            ...salaryInfo.professionalTax,
+          };
+        }
+      }
+    }
   }
 
   await employee.save();
 
+  const populatedEmployee = await Employee.findById(employee._id).populate(
+    "user",
+    "-password -refreshToken"
+  );
+
   return res
     .status(200)
-    .json(new ApiRespons(200, employee, "Profile updated successfully"));
+    .json(new ApiRespons(200, populatedEmployee, "Profile updated successfully"));
 });
 
 // @desc    Upload profile picture
@@ -487,7 +634,7 @@ export const createEmployee = asyncHandler(async (req, res) => {
 // @route   PUT /api/v1/employees/:id
 // @access  Private (Admin/HR)
 export const updateEmployee = asyncHandler(async (req, res) => {
-  const { personalDetails, jobDetails } = req.body;
+  const { personalDetails, jobDetails, salaryInfo } = req.body;
 
   const employee = await Employee.findById(req.params.id);
 
@@ -497,18 +644,137 @@ export const updateEmployee = asyncHandler(async (req, res) => {
 
   // Update fields
   if (personalDetails) {
-    employee.personalDetails = { ...employee.personalDetails, ...personalDetails };
+    // Handle nested updates properly
+    if (personalDetails.bankDetails) {
+      employee.personalDetails.bankDetails = { 
+        ...employee.personalDetails.bankDetails, 
+        ...personalDetails.bankDetails 
+      };
+      delete personalDetails.bankDetails;
+    }
+    if (personalDetails.skills) {
+      employee.personalDetails.skills = personalDetails.skills;
+      delete personalDetails.skills;
+    }
+    if (personalDetails.certifications) {
+      employee.personalDetails.certifications = personalDetails.certifications;
+      delete personalDetails.certifications;
+    }
+    // Only update provided fields
+    if (personalDetails.fullName !== undefined) {
+      employee.personalDetails.fullName = personalDetails.fullName;
+    }
+    if (personalDetails.phone !== undefined) {
+      employee.personalDetails.phone = personalDetails.phone;
+    }
+    // Merge other personal details
+    Object.keys(personalDetails).forEach(key => {
+      if (key !== 'bankDetails' && key !== 'skills' && key !== 'certifications' && 
+          key !== 'fullName' && key !== 'phone') {
+        employee.personalDetails[key] = personalDetails[key];
+      }
+    });
   }
   if (jobDetails) {
     // Handle joinDate -> joiningDate conversion
-    if (jobDetails.joinDate) {
-      jobDetails.joiningDate = new Date(jobDetails.joinDate);
+    if (jobDetails.joinDate !== undefined && jobDetails.joinDate !== null && jobDetails.joinDate !== '') {
+      const joinDate = new Date(jobDetails.joinDate);
+      // Validate date
+      if (isNaN(joinDate.getTime())) {
+        throw new ApiError(400, "Invalid join date format. Please provide a valid date.");
+      }
+      jobDetails.joiningDate = joinDate;
       delete jobDetails.joinDate;
     }
-    employee.jobDetails = { ...employee.jobDetails, ...jobDetails };
+    // Only update provided fields
+    if (jobDetails.designation !== undefined) {
+      employee.jobDetails.designation = jobDetails.designation;
+    }
+    if (jobDetails.department !== undefined) {
+      employee.jobDetails.department = jobDetails.department;
+    }
+    if (jobDetails.employmentType !== undefined) {
+      employee.jobDetails.employmentType = jobDetails.employmentType;
+    }
+    if (jobDetails.joiningDate !== undefined) {
+      employee.jobDetails.joiningDate = jobDetails.joiningDate;
+    }
+    // Merge other job details
+    Object.keys(jobDetails).forEach(key => {
+      if (key !== 'designation' && key !== 'department' && 
+          key !== 'employmentType' && key !== 'joiningDate' && key !== 'joinDate') {
+        employee.jobDetails[key] = jobDetails[key];
+      }
+    });
+  }
+  if (salaryInfo) {
+    // If monthWage is updated, recalculate all salary components
+    if (salaryInfo.monthWage !== undefined) {
+      const monthWage = salaryInfo.monthWage;
+      const yearlyWage = monthWage * 12;
+      const calculatedComponents = calculateSalaryComponents(monthWage);
+      
+      employee.salaryInfo.monthWage = monthWage;
+      employee.salaryInfo.yearlyWage = yearlyWage;
+      employee.salaryInfo.salaryComponents = calculatedComponents;
+      
+      // Also update PF and Professional Tax
+      employee.salaryInfo.pfEmployee = calculatedComponents.pfEmployee;
+      employee.salaryInfo.pfEmployer = calculatedComponents.pfEmployer;
+      employee.salaryInfo.professionalTax = calculatedComponents.professionalTax;
+    } else {
+      // Update other salary info fields without recalculation
+      if (salaryInfo.yearlyWage !== undefined) {
+        employee.salaryInfo.yearlyWage = salaryInfo.yearlyWage;
+      }
+      if (salaryInfo.workingDays !== undefined) {
+        employee.salaryInfo.workingDays = salaryInfo.workingDays;
+      }
+      if (salaryInfo.breakTime !== undefined) {
+        employee.salaryInfo.breakTime = salaryInfo.breakTime;
+      }
+      if (salaryInfo.salaryComponents) {
+        employee.salaryInfo.salaryComponents = {
+          ...employee.salaryInfo.salaryComponents,
+          ...salaryInfo.salaryComponents,
+        };
+      }
+      if (salaryInfo.pfEmployee) {
+        employee.salaryInfo.pfEmployee = {
+          ...employee.salaryInfo.pfEmployee,
+          ...salaryInfo.pfEmployee,
+        };
+      }
+      if (salaryInfo.pfEmployer) {
+        employee.salaryInfo.pfEmployer = {
+          ...employee.salaryInfo.pfEmployer,
+          ...salaryInfo.pfEmployer,
+        };
+      }
+      if (salaryInfo.professionalTax) {
+        employee.salaryInfo.professionalTax = {
+          ...employee.salaryInfo.professionalTax,
+          ...salaryInfo.professionalTax,
+        };
+      }
+    }
   }
 
-  await employee.save();
+  try {
+    await employee.save();
+  } catch (error) {
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => err.message);
+      throw new ApiError(400, `Validation error: ${errors.join(', ')}`);
+    }
+    // Handle duplicate key errors
+    if (error.code === 11000) {
+      throw new ApiError(409, "Employee with this information already exists");
+    }
+    // Re-throw other errors
+    throw error;
+  }
 
   const populatedEmployee = await Employee.findById(employee._id).populate(
     "user",

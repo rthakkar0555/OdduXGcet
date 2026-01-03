@@ -9,6 +9,7 @@ import { Select } from '../../components/ui/Select'
 import { employeeService, payrollService } from '../../services/api'
 import { DollarSign, Plus, X } from 'lucide-react'
 import { formatCurrency } from '../../lib/utils'
+import { useToast } from '../../components/ui/Toaster'
 
 const PayrollManagement = () => {
   const { toastSuccess, toastError } = useToast()

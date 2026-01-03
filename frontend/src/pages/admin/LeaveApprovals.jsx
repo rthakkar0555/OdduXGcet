@@ -9,6 +9,7 @@ import { Label } from '../../components/ui/Label'
 import { leaveService } from '../../services/api'
 import { FileText, Check, X } from 'lucide-react'
 import { formatDate } from '../../lib/utils'
+import { useToast } from '../../components/ui/Toaster'
 
 const LeaveApprovals = () => {
   const { toastSuccess, toastError } = useToast()
