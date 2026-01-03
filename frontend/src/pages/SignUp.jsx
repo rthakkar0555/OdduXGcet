@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Label } from '../components/ui/Label'
+import { Select } from '../components/ui/Select'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card'
 import api from '../lib/api'
 
@@ -14,7 +15,8 @@ const SignUp = () => {
     email: '',
     phone: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    role: 'employee'
   })
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -67,6 +69,7 @@ const SignUp = () => {
       formDataToSend.append('phone', formData.phone)
       formDataToSend.append('password', formData.password)
       formDataToSend.append('confirmPassword', formData.confirmPassword)
+      formDataToSend.append('role', formData.role)
       if (logoFile) {
         formDataToSend.append('logo', logoFile)
       }
@@ -184,6 +187,20 @@ const SignUp = () => {
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     placeholder="+1234567890"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="role">Role</Label>
+                  <Select
+                    id="role"
+                    value={formData.role}
+                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                    required
+                  >
+                    <option value="employee">Employee</option>
+                    <option value="hr">HR</option>
+                    <option value="admin">Admin</option>
+                  </Select>
                 </div>
 
                 <div className="space-y-2">

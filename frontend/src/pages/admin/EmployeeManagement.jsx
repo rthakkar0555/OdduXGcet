@@ -253,7 +253,6 @@ const EmployeeManagement = () => {
                     <TableHead>Designation</TableHead>
                     <TableHead>Department</TableHead>
                     <TableHead>Type</TableHead>
-                    <TableHead>Join Date</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -269,11 +268,6 @@ const EmployeeManagement = () => {
                         <Badge variant="secondary" className="capitalize">
                           {employee.jobDetails?.employmentType || 'N/A'}
                         </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {employee.jobDetails?.joinDate 
-                          ? formatDate(employee.jobDetails.joinDate) 
-                          : 'N/A'}
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-2">
