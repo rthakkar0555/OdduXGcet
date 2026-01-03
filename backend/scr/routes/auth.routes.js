@@ -5,6 +5,9 @@ import {
   logout,
   refreshAccessToken,
   getCurrentUser,
+  changePassword,
+  verifyEmail,
+  resendVerificationEmail,
 } from "../controllers/auth.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 import {
@@ -16,12 +19,16 @@ import { upload } from "../middlewares/multer.middleware.js";
 const router = Router();
 
 // Public routes
+// Note: Signup is kept for initial company setup, but normal employees should be created by HR/Admin
 router.post("/signup", upload.single("logo"), ...signupValidation, signup);
 router.post("/signin", ...signinValidation, signin);
 router.post("/refresh-token", refreshAccessToken);
+router.get("/verify-email", verifyEmail);
 
 // Protected routes
 router.post("/logout", verifyJWT, logout);
 router.get("/me", verifyJWT, getCurrentUser);
+router.post("/change-password", verifyJWT, changePassword);
+router.post("/resend-verification", verifyJWT, resendVerificationEmail);
 
 export default router;
