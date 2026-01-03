@@ -10,8 +10,10 @@ import { Badge } from '../../components/ui/Badge'
 import { employeeService } from '../../services/api'
 import { Users, Plus, X, Edit, Trash2 } from 'lucide-react'
 import { formatDate } from '../../lib/utils'
+import { useToast } from '../../components/ui/Toaster'
 
 const EmployeeManagement = () => {
+  const { toastSuccess, toastError } = useToast()
   const [employees, setEmployees] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -98,13 +100,15 @@ const EmployeeManagement = () => {
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this employee?')) return
+    const confirmed = window.confirm('Are you sure you want to delete this employee?')
+    if (!confirmed) return
     
     try {
       await employeeService.delete(id)
       await fetchEmployees()
+      toastSuccess('Employee deleted successfully!')
     } catch (error) {
-      alert(error.response?.data?.message || 'Failed to delete employee')
+      toastError(error.response?.data?.message || 'Failed to delete employee', 'Delete Failed')
     }
   }
 

@@ -3,47 +3,64 @@ import { useAuth } from '../../context/AuthContext'
 import DashboardLayout from '../../components/DashboardLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
+import { Input } from '../../components/ui/Input'
 import { Badge } from '../../components/ui/Badge'
-import { attendanceService, leaveService } from '../../services/api'
-import { Calendar, Clock, FileText, TrendingUp } from 'lucide-react'
+import { employeeService, attendanceService, leaveService } from '../../services/api'
+import { Search, Clock } from 'lucide-react'
 import { formatDate, formatTime } from '../../lib/utils'
+import EmployeeCard from '../../components/EmployeeCard'
+import EmployeeDetailModal from '../../components/EmployeeDetailModal'
+import { useToast } from '../../components/ui/Toaster'
 
 const EmployeeDashboard = () => {
   const { user } = useAuth()
+  const { toastSuccess, toastError } = useToast()
+  const [employees, setEmployees] = useState([])
+  const [filteredEmployees, setFilteredEmployees] = useState([])
   const [todayAttendance, setTodayAttendance] = useState(null)
-  const [recentLeaves, setRecentLeaves] = useState([])
-  const [stats, setStats] = useState({
-    totalPresent: 0,
-    totalLeaves: 0,
-    pendingLeaves: 0,
-  })
   const [loading, setLoading] = useState(true)
   const [checkingIn, setCheckingIn] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedEmployee, setSelectedEmployee] = useState(null)
 
   useEffect(() => {
     fetchDashboardData()
   }, [])
+
+  useEffect(() => {
+    if (searchQuery.trim() === '') {
+      setFilteredEmployees(employees)
+    } else {
+      const query = searchQuery.toLowerCase()
+      setFilteredEmployees(
+        employees.filter(emp => {
+          const name = emp?.personalDetails?.fullName?.toLowerCase() || ''
+          const designation = emp?.jobDetails?.designation?.toLowerCase() || ''
+          const department = emp?.jobDetails?.department?.toLowerCase() || ''
+          return name.includes(query) || designation.includes(query) || department.includes(query)
+        })
+      )
+    }
+  }, [searchQuery, employees])
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true)
       
       // Fetch today's attendance
-      const attendanceRes = await attendanceService.getTodayStatus()
-      setTodayAttendance(attendanceRes.data)
+      try {
+        const attendanceRes = await attendanceService.getTodayStatus()
+        setTodayAttendance(attendanceRes.data)
+      } catch (error) {
+        // If endpoint doesn't exist, that's okay
+        console.log('Today status endpoint not available')
+      }
 
-      // Fetch recent leaves
-      const leavesRes = await leaveService.getMy()
-      const leaves = leavesRes.data?.leaves || leavesRes.data || []
-      setRecentLeaves(leaves.slice(0, 5))
-
-      // Calculate stats
-      const pendingCount = leaves.filter(l => l.status === 'pending').length
-      setStats({
-        totalPresent: 0, // You can calculate this from attendance history
-        totalLeaves: leaves.length,
-        pendingLeaves: pendingCount,
-      })
+      // Fetch all employees with attendance status
+      const employeesRes = await employeeService.getAll({ withAttendance: true, limit: 100 })
+      const employeesList = employeesRes.data?.employees || employeesRes.data || []
+      setEmployees(employeesList)
+      setFilteredEmployees(employeesList)
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
     } finally {
@@ -56,9 +73,10 @@ const EmployeeDashboard = () => {
       setCheckingIn(true)
       await attendanceService.checkIn()
       await fetchDashboardData()
+      toastSuccess('Checked in successfully!')
     } catch (error) {
       console.error('Check-in failed:', error)
-      alert(error.response?.data?.message || 'Failed to check in')
+      toastError(error.response?.data?.message || 'Failed to check in', 'Check-in Failed')
     } finally {
       setCheckingIn(false)
     }
@@ -69,21 +87,23 @@ const EmployeeDashboard = () => {
       setCheckingIn(true)
       await attendanceService.checkOut()
       await fetchDashboardData()
+      toastSuccess('Checked out successfully!')
     } catch (error) {
       console.error('Check-out failed:', error)
-      alert(error.response?.data?.message || 'Failed to check out')
+      toastError(error.response?.data?.message || 'Failed to check out', 'Check-out Failed')
     } finally {
       setCheckingIn(false)
     }
   }
 
-  const getLeaveStatusBadge = (status) => {
-    const variants = {
-      pending: 'warning',
-      approved: 'success',
-      rejected: 'destructive',
+  const handleCardClick = async (employee) => {
+    try {
+      const response = await employeeService.getById(employee._id)
+      setSelectedEmployee(response.data)
+    } catch (error) {
+      console.error('Failed to fetch employee details:', error)
+      setSelectedEmployee(employee)
     }
-    return <Badge variant={variants[status] || 'default'}>{status}</Badge>
   }
 
   return (
@@ -92,109 +112,79 @@ const EmployeeDashboard = () => {
         {/* Header */}
         <div>
           <h1 className="text-3xl font-bold">Welcome back, {user?.employeeProfile?.personalDetails?.fullName || 'User'}!</h1>
-          <p className="text-muted-foreground mt-1">Here's what's happening with your work today.</p>
+          <p className="text-muted-foreground mt-1">View all employees and manage your attendance</p>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Today's Status</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {todayAttendance?.status || 'Not Marked'}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {todayAttendance?.checkIn && `In: ${formatTime(todayAttendance.checkIn)}`}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Leaves</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalLeaves}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {stats.pendingLeaves} pending approval
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">This Month</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalPresent}</div>
-              <p className="text-xs text-muted-foreground mt-1">Days present</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Performance</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">95%</div>
-              <p className="text-xs text-muted-foreground mt-1">Attendance rate</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Quick Actions */}
+        {/* Check In/Out Section */}
         <Card>
           <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Manage your attendance for today</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Attendance
+            </CardTitle>
+            <CardDescription>Mark your attendance for today</CardDescription>
           </CardHeader>
           <CardContent className="flex gap-4">
             {!todayAttendance?.checkIn ? (
-              <Button onClick={handleCheckIn} disabled={checkingIn}>
-                {checkingIn ? 'Processing...' : 'Check In'}
+              <Button onClick={handleCheckIn} disabled={checkingIn} className="bg-green-600 hover:bg-green-700">
+                {checkingIn ? 'Processing...' : 'Check In →'}
               </Button>
             ) : !todayAttendance?.checkOut ? (
-              <Button onClick={handleCheckOut} disabled={checkingIn}>
-                {checkingIn ? 'Processing...' : 'Check Out'}
+              <Button onClick={handleCheckOut} disabled={checkingIn} className="bg-red-600 hover:bg-red-700">
+                {checkingIn ? 'Processing...' : 'Check Out →'}
               </Button>
             ) : (
-              <p className="text-sm text-muted-foreground">You've completed your attendance for today!</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Recent Leaves */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Leave Requests</CardTitle>
-            <CardDescription>Your latest leave applications</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {recentLeaves.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No leave requests yet.</p>
-            ) : (
-              <div className="space-y-4">
-                {recentLeaves.map((leave) => (
-                  <div key={leave._id} className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0">
-                    <div>
-                      <p className="font-medium">{leave.leaveType} Leave</p>
-                      <p className="text-sm text-muted-foreground">
-                        {formatDate(leave.startDate)} - {formatDate(leave.endDate)} ({leave.totalDays} days)
-                      </p>
-                    </div>
-                    {getLeaveStatusBadge(leave.status)}
-                  </div>
-                ))}
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-muted-foreground">You've completed your attendance for today!</p>
+                {todayAttendance?.checkIn && (
+                  <span className="text-sm">Since {formatTime(todayAttendance.checkIn)}</span>
+                )}
               </div>
             )}
           </CardContent>
         </Card>
+
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search employees..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
+        {/* Employee Cards Grid */}
+        {loading ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Loading employees...</p>
+          </div>
+        ) : filteredEmployees.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">
+              {searchQuery ? 'No employees found matching your search.' : 'No employees found.'}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {filteredEmployees.map((employee) => (
+              <EmployeeCard
+                key={employee._id}
+                employee={employee}
+                onClick={() => handleCardClick(employee)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Employee Detail Modal */}
+        {selectedEmployee && (
+          <EmployeeDetailModal
+            employee={selectedEmployee}
+            onClose={() => setSelectedEmployee(null)}
+          />
+        )}
       </div>
     </DashboardLayout>
   )

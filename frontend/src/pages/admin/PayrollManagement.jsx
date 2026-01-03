@@ -11,6 +11,7 @@ import { DollarSign, Plus, X } from 'lucide-react'
 import { formatCurrency } from '../../lib/utils'
 
 const PayrollManagement = () => {
+  const { toastSuccess, toastError } = useToast()
   const [employees, setEmployees] = useState([])
   const [payrolls, setPayrolls] = useState([])
   const [loading, setLoading] = useState(true)
@@ -99,8 +100,9 @@ const PayrollManagement = () => {
         otherDeduction: '',
       })
       await fetchData()
+      toastSuccess('Payroll saved successfully!')
     } catch (error) {
-      alert(error.response?.data?.message || 'Failed to save payroll')
+      toastError(error.response?.data?.message || 'Failed to save payroll', 'Save Failed')
     } finally {
       setSubmitting(false)
     }

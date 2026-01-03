@@ -2,16 +2,19 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { 
   LayoutDashboard, Users, Calendar, FileText, DollarSign, 
-  LogOut, User, Settings, Menu, X 
+  LogOut, User, Settings, Menu, X, ChevronDown
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '../lib/utils'
+import { Avatar, AvatarImage, AvatarFallback } from './ui/Avatar'
+import { getImageUrl } from '../utils/imageUtils'
 
 const Sidebar = () => {
   const location = useLocation()
   const { user, logout, isAdmin, isHR } = useAuth()
   const navigate = useNavigate()
   const [isMobileOpen, setIsMobileOpen] = useState(false)
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false)
 
   const handleLogout = async () => {
     await logout()
@@ -27,14 +30,17 @@ const Sidebar = () => {
   ]
 
   const adminNavItems = [
-    { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
-    { name: 'Employees', path: '/admin/employees', icon: Users },
+    { name: 'Employees', path: '/admin/dashboard', icon: Users },
     { name: 'Attendance', path: '/admin/attendance', icon: Calendar },
-    { name: 'Leave Approvals', path: '/admin/leaves', icon: FileText },
-    { name: 'Payroll', path: '/admin/payroll', icon: DollarSign },
+    { name: 'Time Off', path: '/admin/leaves', icon: FileText },
   ]
 
   const navItems = (isAdmin || isHR) ? adminNavItems : employeeNavItems
+
+  const profilePicturePath = user?.employeeProfile?.personalDetails?.profilePicture
+  const profilePicture = getImageUrl(profilePicturePath)
+  const emoji = user?.employeeProfile?.personalDetails?.emoji
+  const fullName = user?.employeeProfile?.personalDetails?.fullName || 'User'
 
   const NavContent = () => (
     <>
@@ -68,25 +74,59 @@ const Sidebar = () => {
       </nav>
 
       <div className="p-4 border-t">
-        <div className="flex items-center gap-3 px-4 py-3 mb-2">
-          <div className="h-10 w-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-semibold">
-            {user?.employeeProfile?.personalDetails?.fullName?.[0] || user?.email?.[0]?.toUpperCase()}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">
-              {user?.employeeProfile?.personalDetails?.fullName || 'User'}
-            </p>
-            <p className="text-xs text-muted-foreground truncate">{user?.role}</p>
-          </div>
+        {/* User Profile with Dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+            className="flex items-center gap-3 px-4 py-3 w-full rounded-md hover:bg-accent transition-colors"
+          >
+            {profilePicture ? (
+              <Avatar className="w-10 h-10">
+                <AvatarImage src={profilePicture} alt={fullName} />
+                <AvatarFallback>{fullName.charAt(0).toUpperCase()}</AvatarFallback>
+              </Avatar>
+            ) : emoji ? (
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-xl">
+                {emoji}
+              </div>
+            ) : (
+              <Avatar className="w-10 h-10">
+                <AvatarFallback className="bg-primary text-primary-foreground">
+                  {fullName.charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            )}
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-sm font-medium truncate">{fullName}</p>
+              <p className="text-xs text-muted-foreground truncate capitalize">{user?.role}</p>
+            </div>
+            <ChevronDown className={cn("h-4 w-4 transition-transform", showProfileDropdown && "rotate-180")} />
+          </button>
+
+          {/* Dropdown Menu */}
+          {showProfileDropdown && (
+            <div className="absolute bottom-full left-0 right-0 mb-2 bg-background border rounded-md shadow-lg z-50">
+              <Link
+                to="/profile"
+                onClick={() => setShowProfileDropdown(false)}
+                className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-accent transition-colors"
+              >
+                <User className="h-4 w-4" />
+                My Profile
+              </Link>
+              <button
+                onClick={() => {
+                  setShowProfileDropdown(false)
+                  handleLogout()
+                }}
+                className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-accent transition-colors w-full text-left"
+              >
+                <LogOut className="h-4 w-4" />
+                Log Out
+              </button>
+            </div>
+          )}
         </div>
-        
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground w-full transition-colors"
-        >
-          <LogOut className="h-5 w-5" />
-          Logout
-        </button>
       </div>
     </>
   )

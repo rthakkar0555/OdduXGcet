@@ -1,11 +1,14 @@
 import { Employee } from "../models/employee.model.js";
 import { User } from "../models/user.model.js";
+import { Attendance } from "../models/attendance.model.js";
+import { Leave } from "../models/leave.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiRespons } from "../utils/ApiRespons.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { sendWelcomeEmail, sendVerificationEmail } from "../utils/emailService.js";
 import jwt from "jsonwebtoken";
+import path from "path";
+import fs from "fs";
 
 // Generate random password
 const generateRandomPassword = () => {
@@ -112,8 +115,13 @@ export const updateProfile = asyncHandler(async (req, res) => {
   // Employees can only update limited fields
   if (req.user.role === "employee") {
     if (personalDetails) {
-      employee.personalDetails.phone = personalDetails.phone || employee.personalDetails.phone;
-      employee.personalDetails.address = personalDetails.address || employee.personalDetails.address;
+      employee.personalDetails.phone = personalDetails.phone !== undefined ? personalDetails.phone : employee.personalDetails.phone;
+      employee.personalDetails.address = personalDetails.address !== undefined ? personalDetails.address : employee.personalDetails.address;
+      employee.personalDetails.emoji = personalDetails.emoji !== undefined ? personalDetails.emoji : employee.personalDetails.emoji;
+      // Allow removing profile picture by setting to null
+      if (personalDetails.profilePicture === null) {
+        employee.personalDetails.profilePicture = null;
+      }
     }
   } else {
     // Admin/HR can update all fields
@@ -136,27 +144,68 @@ export const updateProfile = asyncHandler(async (req, res) => {
 // @route   POST /api/v1/employees/profile-picture
 // @access  Private
 export const uploadProfilePicture = asyncHandler(async (req, res) => {
-  const localFilePath = req.file?.path;
+  console.log("Upload request received:", {
+    hasFile: !!req.file,
+    file: req.file,
+    body: req.body
+  });
 
-  if (!localFilePath) {
-    throw new ApiError(400, "Profile picture file is required");
+  if (!req.file) {
+    throw new ApiError(400, "Profile picture file is required. Please select an image file.");
   }
 
-  const profilePicture = await uploadOnCloudinary(localFilePath);
+  // Get the relative path from public folder
+  // req.file.path will be like: public/temp/profilePicture-xxx.jpg
+  // We need to convert it to: /uploads/profile-pictures/profilePicture-xxx.jpg
+  
+  const tempFilePath = req.file.path;
+  const fileName = req.file.filename;
+  
+  // Create uploads/profile-pictures directory if it doesn't exist
+  const uploadsDir = path.resolve(process.cwd(), "public", "uploads", "profile-pictures");
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+    console.log("✅ Created profile pictures directory:", uploadsDir);
+  }
 
-  if (!profilePicture) {
-    throw new ApiError(400, "Error uploading profile picture");
+  // Move file from temp to permanent location
+  const permanentPath = path.join(uploadsDir, fileName);
+  fs.renameSync(tempFilePath, permanentPath);
+
+  // Store relative path in database (accessible via static file serving)
+  // This will be: /uploads/profile-pictures/filename.jpg
+  const relativePath = `/uploads/profile-pictures/${fileName}`;
+
+  console.log("✅ File saved locally at:", permanentPath);
+  console.log("📝 Relative path stored:", relativePath);
+
+  // If employee already has a profile picture, delete the old one
+  const existingEmployee = await Employee.findOne({ user: req.user._id });
+  if (existingEmployee?.personalDetails?.profilePicture) {
+    const oldPath = existingEmployee.personalDetails.profilePicture;
+    // Only delete if it's a local path (starts with /uploads)
+    if (oldPath.startsWith("/uploads")) {
+      const oldFilePath = path.resolve(process.cwd(), "public", oldPath);
+      if (fs.existsSync(oldFilePath)) {
+        fs.unlinkSync(oldFilePath);
+        console.log("🗑️ Deleted old profile picture:", oldFilePath);
+      }
+    }
   }
 
   const employee = await Employee.findOneAndUpdate(
     { user: req.user._id },
     {
       $set: {
-        "personalDetails.profilePicture": profilePicture.url,
+        "personalDetails.profilePicture": relativePath,
       },
     },
     { new: true }
-  );
+  ).populate("user", "-password -refreshToken");
+
+  if (!employee) {
+    throw new ApiError(404, "Employee profile not found");
+  }
 
   return res
     .status(200)
@@ -167,7 +216,7 @@ export const uploadProfilePicture = asyncHandler(async (req, res) => {
 // @route   GET /api/v1/employees
 // @access  Private (Admin/HR)
 export const getAllEmployees = asyncHandler(async (req, res) => {
-  const { department, status, page = 1, limit = 10 } = req.query;
+  const { department, status, page = 1, limit = 10, withAttendance } = req.query;
 
   const query = {};
   if (department) query["jobDetails.department"] = department;
@@ -179,13 +228,81 @@ export const getAllEmployees = asyncHandler(async (req, res) => {
     .skip((page - 1) * limit)
     .sort({ createdAt: -1 });
 
+  // If withAttendance is true, get today's attendance status for each employee
+  let employeesWithAttendance = employees;
+  if (withAttendance === "true") {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    // Get today's attendance records
+    const todayAttendance = await Attendance.find({
+      date: {
+        $gte: today,
+        $lt: tomorrow,
+      },
+    });
+
+    const attendanceMap = {};
+    todayAttendance.forEach((att) => {
+      const empId = att.employee?.toString();
+      if (empId) {
+        attendanceMap[empId] = {
+          status: att.status,
+          checkIn: att.checkIn,
+          checkOut: att.checkOut,
+        };
+      }
+    });
+
+    // Check for active leaves today
+    const todayLeaves = await Leave.find({
+      startDate: { $lte: tomorrow },
+      endDate: { $gte: today },
+      status: "approved",
+    });
+
+    const leaveMap = {};
+    todayLeaves.forEach((leave) => {
+      const empId = leave.employee?.toString();
+      if (empId) {
+        leaveMap[empId] = true;
+      }
+    });
+
+    employeesWithAttendance = employees.map((emp) => {
+      const empObj = emp.toObject();
+      const empId = emp._id.toString();
+      
+      // Check if on leave (highest priority)
+      if (leaveMap[empId]) {
+        empObj.todayStatus = "on-leave";
+      } else if (attendanceMap[empId]) {
+        // Check attendance status
+        if (attendanceMap[empId].status === "present" && attendanceMap[empId].checkIn) {
+          empObj.todayStatus = "present";
+        } else if (attendanceMap[empId].status === "absent") {
+          empObj.todayStatus = "absent";
+        } else {
+          empObj.todayStatus = "absent"; // Not checked in = absent
+        }
+      } else {
+        // No attendance record = absent
+        empObj.todayStatus = "absent";
+      }
+      
+      return empObj;
+    });
+  }
+
   const count = await Employee.countDocuments(query);
 
   return res.status(200).json(
     new ApiRespons(
       200,
       {
-        employees,
+        employees: employeesWithAttendance,
         totalPages: Math.ceil(count / limit),
         currentPage: page,
         total: count,
@@ -195,9 +312,9 @@ export const getAllEmployees = asyncHandler(async (req, res) => {
   );
 });
 
-// @desc    Get employee by ID (Admin/HR only)
+// @desc    Get employee by ID (All authenticated users can view)
 // @route   GET /api/v1/employees/:id
-// @access  Private (Admin/HR)
+// @access  Private
 export const getEmployeeById = asyncHandler(async (req, res) => {
   const employee = await Employee.findById(req.params.id).populate(
     "user",

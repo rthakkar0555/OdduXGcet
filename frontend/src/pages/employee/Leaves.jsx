@@ -11,6 +11,7 @@ import { Textarea } from '../../components/ui/Textarea'
 import { leaveService } from '../../services/api'
 import { FileText, Plus, X } from 'lucide-react'
 import { formatDate } from '../../lib/utils'
+import { useToast } from '../../components/ui/Toaster'
 
 const Leaves = () => {
   const [leaves, setLeaves] = useState([])
@@ -49,7 +50,7 @@ const Leaves = () => {
       setFormData({ leaveType: 'casual', startDate: '', endDate: '', reason: '' })
       await fetchLeaves()
     } catch (error) {
-      alert(error.response?.data?.message || 'Failed to apply for leave')
+      toastError(error.response?.data?.message || 'Failed to apply for leave', 'Leave Application Failed')
     } finally {
       setSubmitting(false)
     }

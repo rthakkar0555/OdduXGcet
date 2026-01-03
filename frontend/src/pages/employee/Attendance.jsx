@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/Button'
 import { attendanceService } from '../../services/api'
 import { Calendar, Clock } from 'lucide-react'
 import { formatDate, formatTime, calculateWorkHours } from '../../lib/utils'
+import { useToast } from '../../components/ui/Toaster'
 
 const Attendance = () => {
   const [attendanceRecords, setAttendanceRecords] = useState([])
@@ -40,8 +41,9 @@ const Attendance = () => {
       setActionLoading(true)
       await attendanceService.checkIn()
       await fetchAttendance()
+      toastSuccess('Checked in successfully!')
     } catch (error) {
-      alert(error.response?.data?.message || 'Failed to check in')
+      toastError(error.response?.data?.message || 'Failed to check in', 'Check-in Failed')
     } finally {
       setActionLoading(false)
     }
@@ -52,8 +54,9 @@ const Attendance = () => {
       setActionLoading(true)
       await attendanceService.checkOut()
       await fetchAttendance()
+      toastSuccess('Checked out successfully!')
     } catch (error) {
-      alert(error.response?.data?.message || 'Failed to check out')
+      toastError(error.response?.data?.message || 'Failed to check out', 'Check-out Failed')
     } finally {
       setActionLoading(false)
     }

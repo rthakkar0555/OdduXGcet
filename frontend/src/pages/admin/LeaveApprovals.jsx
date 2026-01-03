@@ -11,6 +11,7 @@ import { FileText, Check, X } from 'lucide-react'
 import { formatDate } from '../../lib/utils'
 
 const LeaveApprovals = () => {
+  const { toastSuccess, toastError } = useToast()
   const [leaves, setLeaves] = useState([])
   const [loading, setLoading] = useState(true)
   const [processingId, setProcessingId] = useState(null)
@@ -39,8 +40,9 @@ const LeaveApprovals = () => {
       await leaveService.updateStatus(leaveId, status, comments)
       await fetchLeaves()
       setReviewComments({ ...reviewComments, [leaveId]: '' })
+      toastSuccess(`Leave ${status === 'approved' ? 'approved' : 'rejected'} successfully!`)
     } catch (error) {
-      alert(error.response?.data?.message || 'Failed to update leave status')
+      toastError(error.response?.data?.message || 'Failed to update leave status', 'Update Failed')
     } finally {
       setProcessingId(null)
     }

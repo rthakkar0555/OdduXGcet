@@ -1,156 +1,125 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import DashboardLayout from '../../components/DashboardLayout'
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card'
-import { employeeService, attendanceService, leaveService } from '../../services/api'
-import { Users, Calendar, FileText, TrendingUp } from 'lucide-react'
+import { Button } from '../../components/ui/Button'
+import { Input } from '../../components/ui/Input'
+import { employeeService } from '../../services/api'
+import { Plus, Search } from 'lucide-react'
+import EmployeeCard from '../../components/EmployeeCard'
+import EmployeeDetailModal from '../../components/EmployeeDetailModal'
 
 const AdminDashboard = () => {
-  const [stats, setStats] = useState({
-    totalEmployees: 0,
-    presentToday: 0,
-    pendingLeaves: 0,
-    attendanceRate: 0,
-  })
+  const navigate = useNavigate()
+  const [employees, setEmployees] = useState([])
+  const [filteredEmployees, setFilteredEmployees] = useState([])
   const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedEmployee, setSelectedEmployee] = useState(null)
 
   useEffect(() => {
-    fetchDashboardStats()
+    fetchEmployees()
   }, [])
 
-  const fetchDashboardStats = async () => {
+  useEffect(() => {
+    if (searchQuery.trim() === '') {
+      setFilteredEmployees(employees)
+    } else {
+      const query = searchQuery.toLowerCase()
+      setFilteredEmployees(
+        employees.filter(emp => {
+          const name = emp?.personalDetails?.fullName?.toLowerCase() || ''
+          const designation = emp?.jobDetails?.designation?.toLowerCase() || ''
+          const department = emp?.jobDetails?.department?.toLowerCase() || ''
+          return name.includes(query) || designation.includes(query) || department.includes(query)
+        })
+      )
+    }
+  }, [searchQuery, employees])
+
+  const fetchEmployees = async () => {
     try {
       setLoading(true)
-      
-      // Fetch all data
-      const [employeesRes, attendanceRes, leavesRes] = await Promise.all([
-        employeeService.getAll(),
-        attendanceService.getAll({ date: new Date().toISOString().split('T')[0] }),
-        leaveService.getAll({ status: 'pending' })
-      ])
-
-      const employees = employeesRes.data?.employees || employeesRes.data || []
-      const todayAttendance = attendanceRes.data?.attendance || attendanceRes.data || []
-      const pendingLeaves = leavesRes.data?.leaves || leavesRes.data || []
-
-      const presentCount = todayAttendance.filter(a => a.status === 'present').length
-      const attendanceRate = employees.length > 0 
-        ? ((presentCount / employees.length) * 100).toFixed(1)
-        : 0
-
-      setStats({
-        totalEmployees: employees.length,
-        presentToday: presentCount,
-        pendingLeaves: pendingLeaves.length,
-        attendanceRate,
-      })
+      const response = await employeeService.getAll({ withAttendance: true, limit: 100 })
+      const employeesList = response.data?.employees || response.data || []
+      setEmployees(employeesList)
+      setFilteredEmployees(employeesList)
     } catch (error) {
-      console.error('Failed to fetch dashboard stats:', error)
+      console.error('Failed to fetch employees:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleCardClick = async (employee) => {
+    try {
+      // Fetch full employee details
+      const response = await employeeService.getById(employee._id)
+      setSelectedEmployee(response.data)
+    } catch (error) {
+      console.error('Failed to fetch employee details:', error)
+      // Still show modal with available data
+      setSelectedEmployee(employee)
     }
   }
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Overview of your organization</p>
+        {/* Header with NEW button and Search */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Employees</h1>
+            <p className="text-muted-foreground mt-1">View all employees and their status</p>
+          </div>
+          <div className="flex gap-3">
+            <Button onClick={() => navigate('/admin/employees')}>
+              <Plus className="h-4 w-4 mr-2" />
+              NEW
+            </Button>
+          </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Employees</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalEmployees}</div>
-              <p className="text-xs text-muted-foreground mt-1">Active workforce</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Present Today</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.presentToday}</div>
-              <p className="text-xs text-muted-foreground mt-1">Out of {stats.totalEmployees} employees</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending Leaves</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.pendingLeaves}</div>
-              <p className="text-xs text-muted-foreground mt-1">Awaiting approval</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Attendance Rate</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.attendanceRate}%</div>
-              <p className="text-xs text-muted-foreground mt-1">Today's attendance</p>
-            </CardContent>
-          </Card>
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search employees..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
         </div>
 
-        {/* Quick Stats */}
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Overview</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Total Employees</span>
-                <span className="font-semibold">{stats.totalEmployees}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Present Today</span>
-                <span className="font-semibold text-green-600">{stats.presentToday}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Absent Today</span>
-                <span className="font-semibold text-red-600">{stats.totalEmployees - stats.presentToday}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Pending Leave Requests</span>
-                <span className="font-semibold text-yellow-600">{stats.pendingLeaves}</span>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Employee Cards Grid */}
+        {loading ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Loading employees...</p>
+          </div>
+        ) : filteredEmployees.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">
+              {searchQuery ? 'No employees found matching your search.' : 'No employees found.'}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {filteredEmployees.map((employee) => (
+              <EmployeeCard
+                key={employee._id}
+                employee={employee}
+                onClick={() => handleCardClick(employee)}
+              />
+            ))}
+          </div>
+        )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>System Status</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">System Health</span>
-                <span className="font-semibold text-green-600">● Online</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Last Sync</span>
-                <span className="font-semibold">Just now</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Database</span>
-                <span className="font-semibold text-green-600">● Connected</span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Employee Detail Modal */}
+        {selectedEmployee && (
+          <EmployeeDetailModal
+            employee={selectedEmployee}
+            onClose={() => setSelectedEmployee(null)}
+          />
+        )}
       </div>
     </DashboardLayout>
   )

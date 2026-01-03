@@ -23,10 +23,11 @@ router.get("/profile", getProfile);
 router.put("/profile", updateProfile);
 router.post("/profile-picture", upload.single("profilePicture"), uploadProfilePicture);
 
-// Admin/HR routes
-router.get("/", authorizeRoles("admin", "hr"), getAllEmployees);
+// All authenticated users can view employees (for cards view)
+router.get("/", getAllEmployees);
+// Admin/HR routes for management
 router.post("/", authorizeRoles("admin", "hr"), createEmployee);
-router.get("/:id", authorizeRoles("admin", "hr"), getEmployeeById);
+router.get("/:id", getEmployeeById); // All users can view individual employee details
 router.put("/:id", authorizeRoles("admin", "hr"), updateEmployee);
 router.patch("/:id/status", authorizeRoles("admin", "hr"), updateEmployeeStatus);
 router.delete("/:id", authorizeRoles("admin"), deleteEmployee);

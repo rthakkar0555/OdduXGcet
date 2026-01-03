@@ -29,6 +29,10 @@ const employeeSchema = new Schema(
       profilePicture: {
         type: String, // Cloudinary URL
       },
+      emoji: {
+        type: String, // Emoji character for avatar
+        trim: true,
+      },
     },
     jobDetails: {
       designation: {

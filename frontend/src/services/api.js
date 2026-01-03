@@ -2,9 +2,9 @@ import api from '../lib/api'
 
 // Employee API calls
 export const employeeService = {
-  // Get all employees (admin/HR only)
-  getAll: async () => {
-    const response = await api.get('/employees')
+  // Get all employees (all authenticated users can view)
+  getAll: async (params = {}) => {
+    const response = await api.get('/employees', { params })
     return response.data
   },
 
@@ -41,6 +41,15 @@ export const employeeService = {
   // Delete employee (admin only)
   delete: async (id) => {
     const response = await api.delete(`/employees/${id}`)
+    return response.data
+  },
+
+  // Upload profile picture
+  uploadProfilePicture: async (file) => {
+    const formData = new FormData()
+    formData.append('profilePicture', file)
+    // Don't set Content-Type header - let axios/browser set it automatically with boundary
+    const response = await api.post('/employees/profile-picture', formData)
     return response.data
   },
 }

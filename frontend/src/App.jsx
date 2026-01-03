@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
+import { ToastProvider } from './components/ui/Toaster'
 import ProtectedRoute from './components/ProtectedRoute'
 
 // Pages
@@ -18,8 +19,9 @@ import PayrollManagement from './pages/admin/PayrollManagement'
 
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
+    <ToastProvider>
+      <AuthProvider>
+        <BrowserRouter>
         <Routes>
           {/* Public Routes */}
           <Route path="/signin" element={<SignIn />} />
@@ -114,7 +116,8 @@ function App() {
           <Route path="*" element={<Navigate to="/signin" replace />} />
         </Routes>
       </BrowserRouter>
-    </AuthProvider>
+      </AuthProvider>
+    </ToastProvider>
   )
 }
 
