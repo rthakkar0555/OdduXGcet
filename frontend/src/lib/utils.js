@@ -6,30 +6,34 @@ export function cn(...inputs) {
 }
 
 export function formatDate(date) {
-  if (!date) return ''
   return new Date(date).toLocaleDateString('en-US', {
     year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
-
-export function formatDateTime(date) {
-  if (!date) return ''
-  return new Date(date).toLocaleString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
+    month: 'long',
+    day: 'numeric'
   })
 }
 
 export function formatCurrency(amount, currency = 'INR') {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
-    currency,
+    currency: currency
   }).format(amount)
+}
+
+export function formatTime(date) {
+  return new Date(date).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+export function getInitials(name) {
+  return name
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
 }
 
 export function calculateWorkHours(checkIn, checkOut) {

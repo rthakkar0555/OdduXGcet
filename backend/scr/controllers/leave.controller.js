@@ -10,6 +10,31 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 export const applyLeave = asyncHandler(async (req, res) => {
   const { leaveType, startDate, endDate, reason } = req.body;
 
+  // Validate dates
+  if (!startDate || !endDate) {
+    throw new ApiError(400, "Start date and end date are required");
+  }
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  // Check if dates are valid
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    throw new ApiError(400, "Invalid date format");
+  }
+
+  // Check if start date is before or equal to end date
+  if (start > end) {
+    throw new ApiError(400, "Start date must be before or equal to end date");
+  }
+
+  // Check if start date is not in the past
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (start < today) {
+    throw new ApiError(400, "Start date cannot be in the past");
+  }
+
   const employee = await Employee.findOne({ user: req.user._id });
 
   if (!employee) {
@@ -22,8 +47,8 @@ export const applyLeave = asyncHandler(async (req, res) => {
     status: { $in: ["pending", "approved"] },
     $or: [
       {
-        startDate: { $lte: new Date(endDate) },
-        endDate: { $gte: new Date(startDate) },
+        startDate: { $lte: end },
+        endDate: { $gte: start },
       },
     ],
   });
@@ -32,11 +57,16 @@ export const applyLeave = asyncHandler(async (req, res) => {
     throw new ApiError(400, "You already have a leave request for this period");
   }
 
+  // Calculate total days
+  const diffTime = Math.abs(end - start);
+  const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include both start and end dates
+
   const leave = await Leave.create({
     employee: employee._id,
     leaveType,
-    startDate: new Date(startDate),
-    endDate: new Date(endDate),
+    startDate: start,
+    endDate: end,
+    totalDays,
     reason,
   });
 

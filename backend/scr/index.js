@@ -5,6 +5,12 @@ import app from "./app.js"
 dotenv.config({
   path:"./.env"
 })
+
+if (!process.env.ACCESS_TOKEN_SECRET) {
+  console.error("FATAL ERROR: ACCESS_TOKEN_SECRET is not defined. Check your .env file.");
+} else {
+  console.log("Environment variables loaded successfully.");
+}
  
 const PORT=process.env.PORT||8000
 // datat base connection

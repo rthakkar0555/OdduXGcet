@@ -163,3 +163,112 @@ export const updateEmployeeStatus = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiRespons(200, employee, "Employee status updated successfully"));
 });
+
+// @desc    Create employee (Admin/HR only)
+// @route   POST /api/v1/employees
+// @access  Private (Admin/HR)
+export const createEmployee = asyncHandler(async (req, res) => {
+  const { personalDetails, jobDetails, email, password, employeeId, role } = req.body;
+
+  if (!email || !password || !employeeId) {
+    throw new ApiError(400, "Email, password, and employeeId are required");
+  }
+
+  // Check if user already exists
+  const existingUser = await User.findOne({ 
+    $or: [{ email }, { employeeId }] 
+  });
+
+  if (existingUser) {
+    throw new ApiError(400, "User with this email or employeeId already exists");
+  }
+
+  // Create user
+  const user = await User.create({
+    email,
+    password,
+    employeeId,
+    role: role || "employee",
+  });
+
+  // Create employee profile
+  const employee = await Employee.create({
+    user: user._id,
+    personalDetails: personalDetails || {},
+    jobDetails: {
+      ...jobDetails,
+      joiningDate: jobDetails?.joinDate ? new Date(jobDetails.joinDate) : new Date(),
+    },
+  });
+
+  // Link employee to user
+  user.employeeProfile = employee._id;
+  await user.save();
+
+  const populatedEmployee = await Employee.findById(employee._id).populate(
+    "user",
+    "-password -refreshToken"
+  );
+
+  return res
+    .status(201)
+    .json(new ApiRespons(201, populatedEmployee, "Employee created successfully"));
+});
+
+// @desc    Update employee by ID (Admin/HR only)
+// @route   PUT /api/v1/employees/:id
+// @access  Private (Admin/HR)
+export const updateEmployee = asyncHandler(async (req, res) => {
+  const { personalDetails, jobDetails } = req.body;
+
+  const employee = await Employee.findById(req.params.id);
+
+  if (!employee) {
+    throw new ApiError(404, "Employee not found");
+  }
+
+  // Update fields
+  if (personalDetails) {
+    employee.personalDetails = { ...employee.personalDetails, ...personalDetails };
+  }
+  if (jobDetails) {
+    // Handle joinDate -> joiningDate conversion
+    if (jobDetails.joinDate) {
+      jobDetails.joiningDate = new Date(jobDetails.joinDate);
+      delete jobDetails.joinDate;
+    }
+    employee.jobDetails = { ...employee.jobDetails, ...jobDetails };
+  }
+
+  await employee.save();
+
+  const populatedEmployee = await Employee.findById(employee._id).populate(
+    "user",
+    "-password -refreshToken"
+  );
+
+  return res
+    .status(200)
+    .json(new ApiRespons(200, populatedEmployee, "Employee updated successfully"));
+});
+
+// @desc    Delete employee (Admin only)
+// @route   DELETE /api/v1/employees/:id
+// @access  Private (Admin)
+export const deleteEmployee = asyncHandler(async (req, res) => {
+  const employee = await Employee.findById(req.params.id);
+
+  if (!employee) {
+    throw new ApiError(404, "Employee not found");
+  }
+
+  // Delete associated user
+  await User.findByIdAndDelete(employee.user);
+
+  // Delete employee
+  await employee.deleteOne();
+
+  return res
+    .status(200)
+    .json(new ApiRespons(200, {}, "Employee deleted successfully"));
+});

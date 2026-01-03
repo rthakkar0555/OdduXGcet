@@ -1,6 +1,7 @@
 import express from "express"
 import cors from "cors"
 import cookieParser from "cookie-parser"
+import { ApiError } from "./utils/ApiError.js"
 
 // Import routes
 import authRoutes from "./routes/auth.routes.js"
@@ -12,9 +13,9 @@ import payrollRoutes from "./routes/payroll.routes.js"
 const app=express()
 
 app.use(cors({
-   origin: process.env.CORS_ORIGIN,
-   credentials:true
-}))
+  origin: "http://localhost:5173", // EXACT frontend URL
+  credentials: true
+}));
 
 app.use(express.json({
   limit:"16kb"
@@ -40,5 +41,24 @@ app.use("/api/v1/payroll", payrollRoutes)
 app.get("/api/v1/health", (req, res) => {
   res.status(200).json({ status: "OK", message: "Dayflow HRMS API is running" })
 })
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+    if (err instanceof ApiError) {
+        return res.status(err.statusCode).json({
+            success: false,
+            message: err.message,
+            errors: err.errors,
+            data: err.data
+        });
+    }
+
+    console.error("Unhandled Error:", err);
+    return res.status(500).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: [],
+    });
+});
 
 export default app

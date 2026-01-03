@@ -222,3 +222,85 @@ export const getAttendanceSummary = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiRespons(200, summary, "Attendance summary fetched successfully"));
 });
+
+// @desc    Get all attendance records (Admin/HR only)
+// @route   GET /api/v1/attendance
+// @access  Private (Admin/HR)
+export const getAllAttendance = asyncHandler(async (req, res) => {
+  const { date, startDate, endDate, page = 1, limit = 30 } = req.query;
+
+  const query = {};
+
+  // If specific date is provided
+  if (date) {
+    const targetDate = new Date(date);
+    targetDate.setHours(0, 0, 0, 0);
+    const nextDate = new Date(targetDate);
+    nextDate.setDate(nextDate.getDate() + 1);
+    query.date = {
+      $gte: targetDate,
+      $lt: nextDate,
+    };
+  } else if (startDate && endDate) {
+    // If date range is provided
+    query.date = {
+      $gte: new Date(startDate),
+      $lte: new Date(endDate),
+    };
+  }
+
+  const attendance = await Attendance.find(query)
+    .populate("employee", "personalDetails jobDetails")
+    .sort({ date: -1 })
+    .limit(limit * 1)
+    .skip((page - 1) * limit);
+
+  const count = await Attendance.countDocuments(query);
+
+  return res.status(200).json(
+    new ApiRespons(
+      200,
+      {
+        attendance,
+        totalPages: Math.ceil(count / limit),
+        currentPage: page,
+        total: count,
+      },
+      "Attendance fetched successfully"
+    )
+  );
+});
+
+// @desc    Get today's attendance status
+// @route   GET /api/v1/attendance/today
+// @access  Private
+export const getTodayAttendance = asyncHandler(async (req, res) => {
+  const employee = await Employee.findOne({ user: req.user._id });
+
+  if (!employee) {
+    throw new ApiError(404, "Employee profile not found");
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const attendance = await Attendance.findOne({
+    employee: employee._id,
+    date: {
+      $gte: today,
+      $lt: tomorrow,
+    },
+  });
+
+  if (!attendance) {
+    return res
+      .status(200)
+      .json(new ApiRespons(200, null, "No attendance record for today"));
+  }
+
+  return res
+    .status(200)
+    .json(new ApiRespons(200, attendance, "Today's attendance fetched successfully"));
+});

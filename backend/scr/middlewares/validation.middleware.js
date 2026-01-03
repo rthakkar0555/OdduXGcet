@@ -6,6 +6,7 @@ export const validate = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     const errorMessages = errors.array().map((err) => err.msg);
+    console.error("Validation Errors:", errors.array());
     throw new ApiError(400, "Validation failed", errorMessages);
   }
   next();
